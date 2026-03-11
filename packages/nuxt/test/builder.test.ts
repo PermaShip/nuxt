@@ -54,4 +54,43 @@ describe('builder:watch', { sequential: true }, async () => {
       'test',
     ])
   })
+
+  it.each(watcherStrategies)('should watch external component dirs registered via addComponentsDir with %s strategy', async (watcher) => {
+    const rootDir = join(tmpDir, 'project')
+    const externalComponentsDir = join(tmpDir, 'external-pkg/components')
+    await mkdir(externalComponentsDir, { recursive: true })
+
+    const nuxt = await loadNuxt({
+      cwd: rootDir,
+      ready: true,
+      overrides: {
+        experimental: { watcher },
+        dev: true,
+        modules: [
+          function (this: unknown, _options: unknown, nuxt: any) {
+            nuxt.hook('components:dirs', (dirs: Array<{ path: string }>) => {
+              dirs.push({ path: externalComponentsDir })
+            })
+          },
+        ],
+      },
+    })
+
+    const events: string[] = []
+    nuxt.hook('builder:watch', (event, path) => {
+      if (event === 'add') {
+        events.push(path)
+      }
+    })
+
+    await build(nuxt)
+
+    const watchPromise = new Promise(resolve => nuxt.hooks.hookOnce('builder:watch', resolve))
+    writeFileSync(join(externalComponentsDir, 'MyExternalComponent.vue'), '<template><div /></template>')
+    await watchPromise
+
+    await nuxt.close()
+
+    expect.soft(events.some(e => e.includes('MyExternalComponent.vue'))).toBe(true)
+  })
 })
