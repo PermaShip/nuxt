@@ -269,6 +269,50 @@ export default defineNuxtModule<ComponentsOptions>({
         })
       }
     }
+
+    // Intercept HMR for deleted component files (e.g. when renaming a component)
+    // to prevent Vite from attempting to re-transform the now-deleted file path,
+    // which causes "Pre-transform error: Failed to load url". Instead, wait for
+    // Nuxt to regenerate templates with the new component list, then invalidate
+    // and return the importer page modules so they are re-evaluated correctly.
+    addVitePlugin({
+      name: 'nuxt:components-rename-handler',
+      handleHotUpdate (ctx) {
+        const filePath = normalize(ctx.file)
+
+        // Only intercept files that were previously tracked as components
+        const wasComponent = getComponents().some(c => c.filePath === filePath)
+        if (!wasComponent || existsSync(ctx.file)) {
+          return // not a component deletion – let Vite handle normally
+        }
+
+        // No modules tracked for this file; nothing to suppress or return
+        if (ctx.modules.length === 0) {
+          return []
+        }
+
+        // Collect all importer modules (the pages that directly import this component)
+        const importers = new Set<(typeof ctx.modules)[number]>()
+        for (const mod of ctx.modules) {
+          for (const importer of mod.importers) {
+            importers.add(importer as any)
+          }
+        }
+
+        // Wait for Nuxt to regenerate templates (guarantees getComponents() is updated),
+        // then invalidate importer pages so Vite re-evaluates them with the new component path.
+        return new Promise<typeof ctx.modules>((resolve) => {
+          const timeout = setTimeout(() => resolve([]), 5_000)
+          nuxt.hookOnce('app:templatesGenerated', () => {
+            clearTimeout(timeout)
+            for (const mod of importers) {
+              ctx.server.moduleGraph.invalidateModule(mod as any)
+            }
+            resolve([...importers] as typeof ctx.modules)
+          })
+        })
+      },
+    }, { server: false })
   },
 })
 
