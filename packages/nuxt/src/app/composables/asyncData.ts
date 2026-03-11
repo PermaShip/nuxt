@@ -1,4 +1,4 @@
-import { computed, getCurrentInstance, getCurrentScope, inject, isShallow, nextTick, onBeforeMount, onScopeDispose, onServerPrefetch, onUnmounted, queuePostFlushCb, ref, shallowRef, toRef, toValue, unref, watch } from 'vue'
+import { computed, getCurrentInstance, getCurrentScope, inject, isShallow, nextTick, onBeforeMount, onScopeDispose, onServerPrefetch, onUnmounted, queuePostFlushCb, ref, shallowRef, toRaw, toRef, toValue, unref, watch } from 'vue'
 import type { MaybeRefOrGetter, MultiWatchSources, Ref } from 'vue'
 import { debounce } from 'perfect-debounce'
 import { hash } from 'ohash'
@@ -260,8 +260,17 @@ export function useAsyncData<
   function createInitialFetch () {
     const initialFetchOptions: AsyncDataExecuteOptions = { cause: 'initial', dedupe: options.dedupe }
     if (!nuxtApp._asyncData[key.value]?._init) {
+      // Prefer stale data saved in `_off` (before the data ref was cleared) over the
+      // data ref's current value, which may already be `undefined` by the time a
+      // navigating-back component calls this function.  Using non-undefined initial
+      // data avoids a reactive "undefined flash" that would otherwise propagate
+      // through user-created computeds (e.g. `computed(() => data.value!.foo)`)
+      // into v-once components that Vue failed to unmount due to empty dynamic children.
+      const prevEntry = nuxtApp._asyncData[key.value]
+      const staleData = prevEntry?._staleData !== undefined ? prevEntry._staleData : prevEntry?.data.value
       initialFetchOptions.cachedData = options.getCachedData!(key.value, nuxtApp, { cause: 'initial' })
-      nuxtApp._asyncData[key.value] = createAsyncData(nuxtApp, key.value, _handler, options, initialFetchOptions.cachedData)
+      const initialValue = initialFetchOptions.cachedData !== undefined ? initialFetchOptions.cachedData : staleData
+      nuxtApp._asyncData[key.value] = createAsyncData(nuxtApp, key.value, _handler, options, initialValue)
     }
     return () => nuxtApp._asyncData[key.value]!.execute(initialFetchOptions)
   }
@@ -334,6 +343,11 @@ export function useAsyncData<
       }
     }
 
+    // Track the specific entry this useAsyncData call has registered with,
+    // to avoid incorrectly decrementing a newer entry's _deps if the old
+    // component scope is disposed after a new entry has been created for the same key.
+    let registeredEntry = asyncData
+
     // setup watchers/instance
     const hasScope = getCurrentScope()
     // Key watcher: react immediately to key changes to remount/migrate the async data container deterministically.
@@ -361,6 +375,7 @@ export function useAsyncData<
         }
 
         nuxtApp._asyncData[newKey]._deps++
+        registeredEntry = nuxtApp._asyncData[newKey]
 
         // Now it's safe to drop the old container.
         if (oldKey) {
@@ -398,7 +413,14 @@ export function useAsyncData<
       onScopeDispose(() => {
         unsubKeyWatcher()
         unsubParamsWatcher()
-        unregister(key.value)
+        // Use the captured entry reference to avoid decrementing a newer entry's
+        // _deps if this scope is disposed after the key's entry was replaced.
+        if (registeredEntry._deps) {
+          registeredEntry._deps--
+          if (registeredEntry._deps === 0) {
+            registeredEntry._off()
+          }
+        }
       })
     }
   }
@@ -652,7 +674,7 @@ export type DebouncedReturn<ArgumentsT extends unknown[], ReturnT> = ((...args: 
   isPending: () => boolean
 }
 
-export type CreatedAsyncData<ResT, NuxtErrorDataT = unknown, DataT = ResT, DefaultT = undefined> = Omit<_AsyncData<DataT | DefaultT, (NuxtErrorDataT extends Error | NuxtError ? NuxtErrorDataT : NuxtError<NuxtErrorDataT>)>, 'clear' | 'refresh'> & { _off: () => void, _hash?: Record<string, string | undefined>, _default: () => unknown, _init: boolean, _deps: number, _execute: DebouncedReturn<[opts?: AsyncDataExecuteOptions | undefined], void>, _abortController?: AbortController }
+export type CreatedAsyncData<ResT, NuxtErrorDataT = unknown, DataT = ResT, DefaultT = undefined> = Omit<_AsyncData<DataT | DefaultT, (NuxtErrorDataT extends Error | NuxtError ? NuxtErrorDataT : NuxtError<NuxtErrorDataT>)>, 'clear' | 'refresh'> & { _off: () => void, _hash?: Record<string, string | undefined>, _default: () => unknown, _init: boolean, _deps: number, _execute: DebouncedReturn<[opts?: AsyncDataExecuteOptions | undefined], void>, _abortController?: AbortController, _staleData?: unknown }
 
 function createAsyncData<
   ResT,
@@ -803,15 +825,55 @@ function createAsyncData<
     _hash: import.meta.dev ? createHash(_handler, options) : undefined,
     _off: () => {
       unsubRefreshAsyncData()
-      if (nuxtApp._asyncData[key]?._init) {
-        nuxtApp._asyncData[key]._init = false
-      }
+      asyncData._init = false
       // TODO: disable in v4 in favour of custom caching strategies
       if (purgeCachedData && !hasCustomGetCachedData) {
         nextTick(() => {
-          if (!nuxtApp._asyncData[key]?._init) {
-            clearNuxtDataByKey(nuxtApp, key)
+          if (!asyncData._init && nuxtApp._asyncData[key] === asyncData) {
+            if (key in nuxtApp.payload.data) {
+              nuxtApp.payload.data[key] = undefined
+            }
+            if (key in nuxtApp.payload._errors) {
+              nuxtApp.payload._errors[key] = undefined
+            }
+            if (key in nuxtApp._asyncDataPromises) {
+              nuxtApp._asyncDataPromises[key] = undefined
+            }
+            asyncData.error.value = undefined
+            if (pendingWhenIdle) {
+              asyncData.pending.value = false
+            }
+            asyncData.status.value = 'idle'
             asyncData.execute = () => Promise.resolve()
+            // Check whether any reactive subscribers are still tracking
+            // asyncData.data (e.g., a computed inside a component that Vue
+            // failed to unmount due to the v-once bug with async-setup under
+            // Suspense).  If live subscribers exist, clear the data ref
+            // non-reactively to avoid propagating through user-created computeds
+            // (e.g. `computed(() => data.value!.foo)`) into those stale render
+            // effects, which would cause spurious runtime errors.
+            // When no subscribers are present (the normal unmount case), clear
+            // reactively so that any external reads of data.value correctly see
+            // the default value (Vue's globalVersion check inside refreshComputed
+            // requires a reactive trigger to re-evaluate a cleaned-up computed).
+            const rawData = toRaw(asyncData.data) as unknown as { dep: { subs: unknown }, _rawValue: unknown, _value: unknown }
+            const defaultValue = unref(asyncData._default())
+            if (rawData.dep.subs) {
+              // Non-reactive clear: bypass Vue's dep notification to avoid
+              // triggering live subscribers that may crash on undefined data.
+              // Save the stale data value so that createInitialFetch can seed
+              // the replacement entry, preventing user-created computeds from
+              // seeing a transient undefined (e.g. `computed(() => data.value!.foo)`).
+              asyncData._staleData = asyncData.data.value
+              rawData._rawValue = rawData._value = defaultValue
+            } else {
+              // Reactive clear: triggers globalVersion increment, allowing
+              // any computed that previously read data.value to re-evaluate.
+              // Do NOT set _staleData here: the reactive setter correctly makes
+              // data.value undefined, so createInitialFetch can use data.value
+              // directly and will correctly start the new entry at the default.
+              asyncData.data.value = defaultValue as any
+            }
           }
         })
       }
