@@ -149,7 +149,7 @@ const plugin: Plugin<{ router: Router }> = defineNuxtPlugin({
           return
         }
 
-        if (import.meta.server && to.redirectedFrom && to.fullPath !== initialURL) {
+        if (import.meta.server && to.redirectedFrom && to.fullPath !== withoutBase(initialURL, routerBase)) {
           await nuxtApp.runWithContext(() => navigateTo(to.fullPath || '/'))
         }
       })
