@@ -125,6 +125,7 @@ export async function augmentAndResolve (pages: NuxtPage[], trackedFiles: Set<st
 
   if (shouldAugment === false) {
     await nuxt.callHook('pages:extend', pages)
+    warnAboutDuplicateRoutes(pages)
     return pages
   }
 
@@ -139,10 +140,12 @@ export async function augmentAndResolve (pages: NuxtPage[], trackedFiles: Set<st
   }
   if (shouldAugment === 'after-resolve') {
     await nuxt.callHook('pages:extend', pages)
+    warnAboutDuplicateRoutes(pages)
     await augmentPages(pages, nuxt.vfs, augmentCtx)
   } else {
     const augmentedPages = await augmentPages(pages, nuxt.vfs, augmentCtx)
     await nuxt.callHook('pages:extend', pages)
+    warnAboutDuplicateRoutes(pages)
     await augmentPages(pages, nuxt.vfs, { pagesToSkip: augmentedPages, ...augmentCtx })
     augmentedPages?.clear()
   }
@@ -510,6 +513,44 @@ export function resolveRoutePaths (page: NuxtPage, parent = '/'): string[] {
     joinURL(parent, page.path),
     ...page.children?.flatMap(child => resolveRoutePaths(child, joinURL(parent, page.path))) || [],
   ]
+}
+
+export function warnAboutDuplicateRoutes (routes: NuxtPage[], _parentPath = '/') {
+  const seenPaths = new Map<string, string | undefined>()
+  const seenNames = new Map<string, string | undefined>()
+
+  function walk (routes: NuxtPage[], parent: string) {
+    for (const route of routes) {
+      if (route._sync) { continue }
+
+      const fullPath = joinURL(parent, route.path)
+
+      if (seenPaths.has(fullPath)) {
+        logger.warn(
+          `Route \`${fullPath}\` has been added via \`pages:extend\` but a route with that path already exists` +
+          (route.file ? ` (from \`${route.file}\`).` : '.'),
+        )
+      }
+      seenPaths.set(fullPath, route.file)
+
+      if (route.name) {
+        const name = String(route.name)
+        if (seenNames.has(name)) {
+          logger.warn(
+            `Route name \`${name}\` has been added via \`pages:extend\` but a route with that name already exists` +
+            (route.file ? ` (from \`${route.file}\`).` : '.'),
+          )
+        }
+        seenNames.set(name, route.file)
+      }
+
+      if (route.children?.length) {
+        walk(route.children, fullPath)
+      }
+    }
+  }
+
+  walk(routes, _parentPath)
 }
 
 export function isSerializable (code: string, node: Node): { value?: any, serializable: boolean } {
