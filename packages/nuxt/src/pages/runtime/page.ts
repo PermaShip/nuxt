@@ -1,4 +1,4 @@
-import { Fragment, Suspense, defineComponent, h, inject, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { Fragment, Suspense, defineComponent, h, inject, nextTick, onBeforeUnmount, provide, ref, watch } from 'vue'
 import type { AllowedComponentProps, Component, ComponentCustomProps, ComponentPublicInstance, KeepAliveProps, Slot, TransitionProps, VNode, VNodeProps } from 'vue'
 import { RouterView } from 'vue-router'
 import type { RouteLocationNormalized, RouteLocationNormalizedLoaded, RouterViewProps } from 'vue-router'
@@ -12,6 +12,8 @@ import { _mergeTransitionProps, _wrapInTransition } from '#app/components/utils'
 import { LayoutMetaSymbol, PageRouteSymbol } from '#app/components/injections'
 // @ts-expect-error virtual file
 import { appKeepalive as defaultKeepaliveConfig, appPageTransition as defaultPageTransition } from '#build/nuxt.config.mjs'
+
+const nuxtPageDepthKey = import.meta.dev ? Symbol.for('nuxt:page-depth') : undefined as unknown as symbol
 
 export interface NuxtPageProps extends RouterViewProps {
   /**
@@ -83,6 +85,21 @@ export default defineComponent({
 
     if (import.meta.dev) {
       nuxtApp._isNuxtPageUsed = true
+      const depth = inject(nuxtPageDepthKey, 0)
+      provide(nuxtPageDepthKey, depth + 1)
+      nuxtApp._nuxtPageInstances ||= new Map<number, number>()
+      const instances = nuxtApp._nuxtPageInstances as Map<number, number>
+      instances.set(depth, (instances.get(depth) ?? 0) + 1)
+      onBeforeUnmount(() => {
+        const count = instances.get(depth)
+        if (count !== undefined) {
+          if (count <= 1) {
+            instances.delete(depth)
+          } else {
+            instances.set(depth, count - 1)
+          }
+        }
+      })
     }
 
     let pageLoadingEndHookAlreadyCalled = false
