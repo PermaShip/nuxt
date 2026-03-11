@@ -54,4 +54,42 @@ describe('builder:watch', { sequential: true }, async () => {
       'test',
     ])
   })
+
+  it.each(watcherStrategies)('should watch layer directories outside rootDir with %s strategy', async (watcher) => {
+    const rootDir = join(tmpDir, 'project')
+    const layerDir = join(tmpDir, 'layer')
+
+    // Create the external layer directory structure
+    await mkdir(join(layerDir, 'node_modules'), { recursive: true })
+    // Write a minimal nuxt.config.ts for the layer
+    writeFileSync(join(layerDir, 'nuxt.config.ts'), 'export default {}')
+
+    const nuxt = await loadNuxt({
+      cwd: rootDir,
+      ready: true,
+      overrides: {
+        experimental: { watcher },
+        dev: true,
+        extends: [layerDir],
+      },
+    })
+
+    const addEvents: string[] = []
+    nuxt.hook('builder:watch', (event, path) => {
+      if (event === 'add') {
+        addEvents.push(path)
+      }
+    })
+
+    await build(nuxt)
+
+    const watchPromise = new Promise(resolve => nuxt.hooks.hookOnce('builder:watch', resolve))
+    // Write a file directly in the external layer's root directory
+    writeFileSync(join(layerDir, 'utils.ts'), 'export const foo = 1')
+    await watchPromise
+
+    await nuxt.close()
+
+    expect(addEvents.some(p => p.includes('utils.ts'))).toBe(true)
+  })
 })
