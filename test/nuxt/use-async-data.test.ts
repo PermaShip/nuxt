@@ -55,6 +55,16 @@ describe('useAsyncData', () => {
     return Object.assign(c, asyncData) as AsyncDataWithoutPromiseMethods & MountedWrapper
   }
 
+  it('should pass $fetch in handler options', async () => {
+    let capturedFetch: any
+    const res = await useAsyncData(`key-fetch-${++counter}`, async (_nuxtApp, { $fetch }) => {
+      capturedFetch = $fetch
+      return 'ok'
+    })
+    expect(res.data.value).toBe('ok')
+    expect(typeof capturedFetch).toBe('function')
+  })
+
   it('should work at basic level', async () => {
     const res = useAsyncData(() => Promise.resolve('test'))
     expect(Object.keys(res).sort()).toMatchInlineSnapshot(`
