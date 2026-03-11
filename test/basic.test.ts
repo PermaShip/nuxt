@@ -1649,6 +1649,15 @@ describe('extends support', () => {
       const { headers } = await fetch('/')
       expect(headers.get('injected-header')).toEqual('foo')
     })
+
+    it('loads nitro plugins from layers before project root', async () => {
+      const { order } = await $fetch<{ order: string[] }>('/api/nitro-plugin-ordering')
+      const layerIndex = order.indexOf('layer')
+      const rootIndex = order.indexOf('root')
+      expect(layerIndex).toBeGreaterThanOrEqual(0)
+      expect(rootIndex).toBeGreaterThanOrEqual(0)
+      expect(layerIndex).toBeLessThan(rootIndex)
+    })
   })
 
   describe('app', () => {
