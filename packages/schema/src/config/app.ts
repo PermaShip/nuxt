@@ -27,10 +27,9 @@ export default defineResolvers({
   app: {
     baseURL: {
       $resolve: (val) => {
-        if (typeof val === 'string') {
-          return val
-        }
-        return process.env.NUXT_APP_BASE_URL || '/'
+        const baseURL = typeof val === 'string' ? val : (process.env.NUXT_APP_BASE_URL || '/')
+        // normalize relative paths (e.g. './') to absolute-style paths (e.g. '/')
+        return baseURL.startsWith('./') ? baseURL.slice(1) : baseURL
       },
     },
     buildAssetsDir: {
