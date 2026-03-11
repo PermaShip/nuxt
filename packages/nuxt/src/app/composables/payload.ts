@@ -9,7 +9,7 @@ import { useRoute } from './router'
 import { getAppManifest, getRouteRules } from './manifest'
 
 // @ts-expect-error virtual import
-import { appId, appManifest, multiApp, payloadExtraction, renderJsonPayloads } from '#build/nuxt.config.mjs'
+import { appId, appManifest, multiApp, payloadExtraction, renderJsonPayloads, ssrPayloadExtraction } from '#build/nuxt.config.mjs'
 
 interface LoadPayloadOptions {
   fresh?: boolean
@@ -120,6 +120,9 @@ export async function shouldLoadPayload (url = useRoute().path) {
   const rules = getRouteRules({ path: url })
   if (rules.ssr === false) {
     return false
+  }
+  if (ssrPayloadExtraction) {
+    return true
   }
   const res = _shouldLoadPrerenderedPayload(rules)
   if (res !== undefined) {

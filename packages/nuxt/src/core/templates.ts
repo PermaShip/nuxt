@@ -522,12 +522,14 @@ export const nuxtConfigTemplate: NuxtTemplate = {
     )
     const nitro = useNitro()
     const hasCachedRoutes = Object.values(nitro.options.routeRules).some(r => r.isr || r.cache)
-    const payloadExtraction = !!ctx.nuxt.options.experimental.payloadExtraction && (nitro.options.static || hasCachedRoutes || (nitro.options.prerender.routes && nitro.options.prerender.routes.length > 0) || Object.values(nitro.options.routeRules).some(r => r.prerender))
+    const ssrPayloadExtraction = ctx.nuxt.options.experimental.payloadExtraction === 'client'
+    const payloadExtraction = !!ctx.nuxt.options.experimental.payloadExtraction && (ssrPayloadExtraction || nitro.options.static || hasCachedRoutes || (nitro.options.prerender.routes && nitro.options.prerender.routes.length > 0) || Object.values(nitro.options.routeRules).some(r => r.prerender))
     return [
       ...Object.entries(ctx.nuxt.options.app).map(([k, v]) => `export const ${camelCase('app-' + k)} = ${JSON.stringify(v)}`),
       `export const renderJsonPayloads = ${!!ctx.nuxt.options.experimental.renderJsonPayloads}`,
       `export const componentIslands = ${shouldEnableComponentIslands}`,
       `export const payloadExtraction = ${payloadExtraction}`,
+      `export const ssrPayloadExtraction = ${ssrPayloadExtraction}`,
       `export const cookieStore = ${!!ctx.nuxt.options.experimental.cookieStore}`,
       `export const appManifest = ${!!ctx.nuxt.options.experimental.appManifest}`,
       `export const remoteComponentIslands = ${typeof ctx.nuxt.options.experimental.componentIslands === 'object' && ctx.nuxt.options.experimental.componentIslands.remoteIsland}`,

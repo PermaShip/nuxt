@@ -232,6 +232,7 @@ export async function bundle (nuxt: Nuxt & { _nitro?: Nitro }): Promise<void> {
           `export const NUXT_PAYLOAD_EXTRACTION = ${nuxt.options.experimental.payloadExtraction !== false}`,
           `export const NUXT_PAYLOAD_INLINE = ${nuxt.options.experimental.payloadExtraction !== true}`,
           `export const NUXT_RUNTIME_PAYLOAD_EXTRACTION = ${hasCachedRoutes}`,
+          `export const NUXT_SSR_PAYLOAD_EXTRACTION = ${nuxt.options.experimental.payloadExtraction === 'client'}`,
         ].join('\n')
       },
     },
