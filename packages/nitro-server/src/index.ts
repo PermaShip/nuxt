@@ -205,7 +205,7 @@ export async function bundle (nuxt: Nuxt & { _nitro?: Nitro }): Promise<void> {
           filename: join(nuxt.options.analyzeDir, '{name}.html'),
         }
       : false,
-    scanDirs: layerDirs.map(dirs => dirs.server),
+    scanDirs: layerDirs.map(dirs => dirs.server).reverse(),
     renderer: resolve(distDir, 'runtime/handlers/renderer'),
     nodeModulesDirs: nuxt.options.modulesDir,
     handlers: nuxt.options.serverHandlers,
