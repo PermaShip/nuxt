@@ -41,8 +41,6 @@ export type KeyOfRes<Transform extends _Transform> = KeysOf<ReturnType<Transform
 
 export type { MultiWatchSources }
 
-export type NoInfer<T> = [T][T extends any ? 0 : never]
-
 export type AsyncDataRefreshCause = 'initial' | 'refresh:hook' | 'refresh:manual' | 'watch'
 
 export interface AsyncDataOptions<
