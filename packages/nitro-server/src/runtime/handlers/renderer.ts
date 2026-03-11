@@ -20,7 +20,7 @@ import { replaceIslandTeleports } from '../utils/renderer/islands'
 // @ts-expect-error virtual file
 import { renderSSRHeadOptions } from '#internal/unhead.config.mjs'
 // @ts-expect-error virtual file
-import { NUXT_ASYNC_CONTEXT, NUXT_EARLY_HINTS, NUXT_INLINE_STYLES, NUXT_JSON_PAYLOADS, NUXT_NO_SCRIPTS, NUXT_PAYLOAD_EXTRACTION, NUXT_PAYLOAD_INLINE, NUXT_RUNTIME_PAYLOAD_EXTRACTION, PARSE_ERROR_DATA } from '#internal/nuxt/nitro-config.mjs'
+import { NUXT_ASYNC_CONTEXT, NUXT_EARLY_HINTS, NUXT_INLINE_STYLES, NUXT_JSON_PAYLOADS, NUXT_NO_SCRIPTS, NUXT_PAYLOAD_EXTRACTION, NUXT_PAYLOAD_INLINE, NUXT_RUNTIME_PAYLOAD_EXTRACTION, NUXT_SSR_PAYLOAD_EXTRACTION, PARSE_ERROR_DATA } from '#internal/nuxt/nitro-config.mjs'
 // @ts-expect-error virtual file
 import { appHead, appTeleportAttrs, appTeleportTag, componentIslands, appManifest as isAppManifestEnabled } from '#internal/nuxt.config.mjs'
 // @ts-expect-error virtual file
@@ -104,7 +104,7 @@ const handler: EventHandler = defineRenderHandler(async (event): Promise<Partial
   // second render or lambda invocation). The _payload.json endpoint still works for client-side nav.
   const _PAYLOAD_INLINE = !_PAYLOAD_EXTRACTION || NUXT_PAYLOAD_INLINE
 
-  const isRenderingPayload = (_PAYLOAD_EXTRACTION || (import.meta.dev && routeOptions.prerender)) && PAYLOAD_URL_RE.test(ssrContext.url)
+  const isRenderingPayload = (_PAYLOAD_EXTRACTION || (import.meta.dev && routeOptions.prerender) || (NUXT_SSR_PAYLOAD_EXTRACTION && !ssrContext.noSSR && routeOptions.ssr !== false)) && PAYLOAD_URL_RE.test(ssrContext.url)
   if (isRenderingPayload) {
     const url = ssrContext.url.substring(0, ssrContext.url.lastIndexOf('/')) || '/'
     ssrContext.url = url
