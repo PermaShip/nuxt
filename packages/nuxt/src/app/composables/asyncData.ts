@@ -6,6 +6,7 @@ import type { NuxtApp } from '../nuxt'
 import { useNuxtApp } from '../nuxt'
 import { getUserCaller, toArray } from '../utils'
 import { clientOnlySymbol } from '../components/client-only'
+import type { H3Event$Fetch } from 'nitropack/types'
 import type { NuxtError } from './error'
 import { createError } from './error'
 import { onNuxtReady } from './ready'
@@ -17,7 +18,7 @@ export type AsyncDataRequestStatus = 'idle' | 'pending' | 'success' | 'error'
 
 export type _Transform<Input = any, Output = any> = (input: Input) => Output | Promise<Output>
 
-export type AsyncDataHandler<ResT> = (nuxtApp: NuxtApp, options: { signal: AbortSignal }) => Promise<ResT>
+export type AsyncDataHandler<ResT> = (nuxtApp: NuxtApp, options: { signal: AbortSignal, $fetch: H3Event$Fetch | typeof globalThis.$fetch }) => Promise<ResT>
 
 export type PickFrom<T, K extends Array<string>> = T extends Array<any>
   ? T
@@ -737,7 +738,8 @@ function createAsyncData<
               reject(reason instanceof Error ? reason : new DOMException(String(reason ?? 'Aborted'), 'AbortError'))
             }, { once: true, signal: cleanupController.signal })
 
-            return Promise.resolve(handler(nuxtApp, { signal: mergedSignal })).then(resolve, reject)
+            const requestFetch = (import.meta.server ? nuxtApp.ssrContext?.event?.$fetch : undefined) ?? globalThis.$fetch
+            return Promise.resolve(nuxtApp.runWithContext(() => handler(nuxtApp, { signal: mergedSignal, $fetch: requestFetch }))).then(resolve, reject)
           } catch (err) {
             reject(err)
           }
