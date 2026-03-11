@@ -242,14 +242,14 @@ export function useAsyncData<DataT, DataE> (
   options?: AsyncDataOptions<DataT>,
 ): Promise<AsyncData<DataT, DataE>>
 
-type AsyncDataOptions<DataT> = {
+type AsyncDataOptions<ResT, DataT = ResT> = {
   server?: boolean
   lazy?: boolean
   immediate?: boolean
   deep?: boolean
   dedupe?: 'cancel' | 'defer'
-  default?: () => DataT | Ref<DataT> | null
-  transform?: (input: DataT) => DataT | Promise<DataT>
+  default?: () => DataT | Ref<DataT>
+  transform?: (input: ResT) => DataT | Promise<DataT>
   pick?: string[]
   watch?: MultiWatchSources | false
   getCachedData?: (key: string, nuxtApp: NuxtApp, ctx: AsyncDataRequestContext) => DataT | undefined
