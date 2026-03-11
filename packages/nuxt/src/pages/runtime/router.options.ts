@@ -31,6 +31,19 @@ export default <RouterConfig> {
 
     if (routeAllowsScrollToTop === false) { return false }
 
+    // Preserve scroll position when only nested child routes changed and the
+    // top-level route component is unchanged. Users can opt out with scrollToTop: true.
+    if (routeAllowsScrollToTop !== true && !savedPosition && from !== START_LOCATION) {
+      if (
+        to.matched.length > 1 &&
+        from.matched.length >= 1 &&
+        to.matched[0]?.components?.default !== undefined &&
+        to.matched[0]?.components?.default === from.matched[0]?.components?.default
+      ) {
+        return false
+      }
+    }
+
     if (from === START_LOCATION) {
       return _calculatePosition(to, from, savedPosition, hashScrollBehaviour)
     }
