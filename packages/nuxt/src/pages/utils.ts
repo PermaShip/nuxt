@@ -560,7 +560,7 @@ export function isSerializable (code: string, node: Node): { value?: any, serial
   }
 }
 
-export function toRou3Patterns (pages: NuxtPage[], prefix = '/'): string[] {
+export function toRou3Patterns (pages: NuxtPage[], prefix = '/', filter?: (path: string) => boolean): string[] {
   const routes: string[] = []
   for (const page of pages) {
     // convert to rou3-compatible path (https://github.com/h3js/rou3)
@@ -572,10 +572,12 @@ export function toRou3Patterns (pages: NuxtPage[], prefix = '/'): string[] {
       // dynamic paths, including custom patterns, e.g. :id([^/]*)*/suffix
       .replace(/:([^/*]*)/g, (_, name) => `:${name.replace(/\W/g, (r: string) => r === '?' ? '' : '_')}`)
 
-    routes.push(joinURL(prefix, path))
+    const fullPath = joinURL(prefix, path)
+    if (filter && !filter(fullPath)) { continue }
+    routes.push(fullPath)
 
     if (page.children) {
-      routes.push(...toRou3Patterns(page.children, joinURL(prefix, path)))
+      routes.push(...toRou3Patterns(page.children, fullPath, filter))
     }
   }
   return routes
