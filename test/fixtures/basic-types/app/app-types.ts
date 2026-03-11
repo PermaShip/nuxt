@@ -130,6 +130,25 @@ describe('API routes', () => {
       },
     })
   })
+
+  it('correctly types generic wrapper composables', () => {
+    function useGenericFetch<T extends object>() {
+      return useFetch<T>('/test')
+    }
+    function useGenericAsyncData<T extends object>() {
+      return useAsyncData<T>('key', () => $fetch('/test'))
+    }
+    function useGenericLazyFetch<T extends object>() {
+      return useLazyFetch<T>('/test')
+    }
+    function useGenericLazyAsyncData<T extends object>() {
+      return useLazyAsyncData<T>('key', () => $fetch('/test'))
+    }
+    expectTypeOf(useGenericFetch<TestResponse>().data).toEqualTypeOf<Ref<TestResponse | DefaultAsyncDataValue>>()
+    expectTypeOf(useGenericAsyncData<TestResponse>().data).toEqualTypeOf<Ref<TestResponse | DefaultAsyncDataValue>>()
+    expectTypeOf(useGenericLazyFetch<TestResponse>().data).toEqualTypeOf<Ref<TestResponse | DefaultAsyncDataValue>>()
+    expectTypeOf(useGenericLazyAsyncData<TestResponse>().data).toEqualTypeOf<Ref<TestResponse | DefaultAsyncDataValue>>()
+  })
 })
 
 describe('nitro compatible APIs', () => {

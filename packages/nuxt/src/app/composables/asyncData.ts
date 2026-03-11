@@ -19,7 +19,7 @@ export type _Transform<Input = any, Output = any> = (input: Input) => Output | P
 
 export type AsyncDataHandler<ResT> = (nuxtApp: NuxtApp, options: { signal: AbortSignal }) => Promise<ResT>
 
-export type PickFrom<T, K extends Array<string>> = T extends Array<any>
+export type PickFrom<T, K extends Array<string>> = [T] extends [any[]]
   ? T
   : T extends Record<string, any>
     ? keyof T extends K[number]
