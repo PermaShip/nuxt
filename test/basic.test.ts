@@ -2094,10 +2094,16 @@ describe('server components/islands', () => {
     }
 
     if (!isWebpack) {
+      // test client component interactivity inside a nested server component
+      await page.locator('.server-with-nested-server .interactive-component-wrapper button').click()
+      expect(await page.locator('.server-with-nested-server .interactive-component-wrapper .sugar-counter').innerHTML()).toContain('Sugar Counter 13')
+    }
+
+    if (!isWebpack) {
       // test client component interactivity
-      expect(await page.locator('.interactive-component-wrapper').innerHTML()).toContain('Sugar Counter 12')
-      await page.locator('.interactive-component-wrapper button').click()
-      expect(await page.locator('.interactive-component-wrapper').innerHTML()).toContain('Sugar Counter 13')
+      expect(await page.locator('.interactive-component-wrapper').first().innerHTML()).toContain('Sugar Counter 12')
+      await page.locator('.interactive-component-wrapper').first().locator('button').click()
+      expect(await page.locator('.interactive-component-wrapper').first().innerHTML()).toContain('Sugar Counter 13')
     }
 
     await page.close()

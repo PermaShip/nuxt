@@ -170,7 +170,8 @@ export default defineComponent({
 
       if (import.meta.client && !canLoadClientComponent.value) {
         for (const [key, value] of Object.entries(payloads.components || {})) {
-          html = html.replace(new RegExp(` data-island-uid="${uid.value}" data-island-component="${key}"[^>]*>`), (full) => {
+          const targetUid = value.uid ?? uid.value
+          html = html.replace(new RegExp(` data-island-uid="${targetUid}" data-island-component="${value.componentId ?? key}"[^>]*>`), (full) => {
             return full + value.html
           })
         }
@@ -192,7 +193,9 @@ export default defineComponent({
     async function _fetchComponent (force = false) {
       const key = `${props.name}_${hashId.value}`
 
-      if (!force && nuxtApp.payload.data[key]?.html) { return nuxtApp.payload.data[key] }
+      if (!force && nuxtApp.payload.data[key]?.html) {
+        return nuxtApp.payload.data[key]
+      }
 
       const url = remoteComponentIslands && props.source ? joinURL(props.source, `/__nuxt_island/${key}.json`) : `/__nuxt_island/${key}.json`
       if (import.meta.server && import.meta.prerender) {
@@ -328,11 +331,26 @@ export default defineComponent({
                 if (payloads.components) {
                   for (const [id, info] of Object.entries(payloads.components)) {
                     const { html, slots } = info
-                    let replaced = html.replaceAll('data-island-uid', `data-island-uid="${uid.value}"`)
+                    // For nested islands: use the uid from the nested island response if present,
+                    // otherwise fall back to the current island's uid
+                    const componentUid = info.uid ?? uid.value
+                    const componentId = info.componentId ?? id
+                    let replaced = html.replaceAll('data-island-uid', `data-island-uid="${componentUid}"`)
                     for (const slot in slots) {
                       replaced = replaced.replaceAll(`data-island-slot="${slot}">`, full => full + slots[slot])
                     }
-                    teleports.push(createVNode(Teleport, { to: `uid=${uid.value};client=${id}` }, {
+                    const teleportKey = `uid=${componentUid};client=${componentId}`
+                    // Register nested island client components into the outer islandContext
+                    // so that getClientIslandResponse() can find the teleport content
+                    if (nuxtApp.ssrContext?.islandContext && !(teleportKey in nuxtApp.ssrContext.islandContext.components)) {
+                      nuxtApp.ssrContext.islandContext.components[teleportKey] = {
+                        chunk: info.chunk,
+                        props: info.props,
+                        uid: componentUid,
+                        componentId,
+                      }
+                    }
+                    teleports.push(createVNode(Teleport, { to: teleportKey }, {
                       default: () => [createStaticVNode(replaced, 1)],
                     }))
                   }
@@ -340,9 +358,11 @@ export default defineComponent({
               } else if (canLoadClientComponent.value && payloads.components) {
                 for (const [id, info] of Object.entries(payloads.components)) {
                   const { props, slots } = info
+                  const componentId = info.componentId ?? id
+                  const componentUid = info.uid ?? uid.value
                   const component = components!.get(id)!
                   // use different selectors for even and odd teleportKey to force trigger the teleport
-                  const vnode = createVNode(Teleport, { to: `${isKeyOdd ? 'div' : ''}[data-island-uid='${uid.value}'][data-island-component="${id}"]` }, {
+                  const vnode = createVNode(Teleport, { to: `${isKeyOdd ? 'div' : ''}[data-island-uid='${componentUid}'][data-island-component="${componentId}"]` }, {
                     default: () => {
                       return [h(component, props, Object.fromEntries(Object.entries(slots || {}).map(([k, v]) => ([k, () => createStaticVNode(`<div style="display: contents" data-island-uid data-island-slot="${k}">${v}</div>`, 1),
                       ]))))]

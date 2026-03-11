@@ -339,6 +339,70 @@ describe('client components', () => {
     expectNoConsoleIssue()
   })
 
+  it('renders nuxt-client from a nested server island using uid/componentId', async () => {
+    const mockPath = '/nested-client.js'
+    const nestedIslandUid = 'nested-island-uid-abc'
+    const componentId = 'NestedClient-12345'
+
+    vi.doMock(mockPath, () => ({
+      default: {
+        name: 'NestedClientComponent',
+        setup () {
+          return () => h('div', { class: 'nested-client' }, 'nested client rendered')
+        },
+      },
+    }))
+
+    // Simulate Island A's JSON response, which includes components from a nested Island B.
+    // The `uid` and `componentId` fields identify where in the HTML the component should be mounted.
+    const stubFetch = vi.fn(() => {
+      return Promise.resolve({
+        id: '456',
+        // Island A's HTML: outer island contains Island B's subtree with Island B's uid and component id
+        html: `<div data-island-uid>outer<div data-island-uid="${nestedIslandUid}" data-island-component="${componentId}"></div></div>`,
+        state: {},
+        head: {
+          link: [],
+          style: [],
+        },
+        components: {
+          [`uid=${nestedIslandUid};client=${componentId}`]: {
+            html: '<div class="nested-client">nested client rendered</div>',
+            props: {},
+            chunk: mockPath,
+            uid: nestedIslandUid,
+            componentId,
+          },
+        },
+        json () {
+          return this
+        },
+        ok: true,
+      })
+    })
+
+    vi.stubGlobal('fetch', stubFetch)
+
+    const wrapper = await mountSuspended(NuxtIsland, {
+      props: {
+        name: 'OuterIslandWithNestedClient',
+        props: {
+          force: true,
+        },
+      },
+      attachTo: 'body',
+    })
+
+    expect(fetch).toHaveBeenCalledOnce()
+    // The nested client component must be teleported into the element with the nested island's uid
+    // (value.uid / value.componentId must override the outer island's uid).
+    const html = wrapper.html()
+    expect(html).toContain(`data-island-uid="${nestedIslandUid}"`)
+    expect(html).toContain('nested client rendered')
+    vi.mocked(fetch).mockReset()
+    expectNoConsoleIssue()
+  })
+
   it('pass a slot to a client components within islands', async () => {
     const mockPath = '/nuxt-client-with-slot.js'
     const componentId = 'ClientWithSlot-12345'

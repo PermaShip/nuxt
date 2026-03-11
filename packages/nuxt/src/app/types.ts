@@ -16,6 +16,10 @@ export interface NuxtIslandClientResponse {
   props: unknown
   chunk: string
   slots?: Record<string, string>
+  /** uid of the island that owns this client component (for nested islands) */
+  uid?: string
+  /** original component id within the owning island (for nested islands) */
+  componentId?: string
 }
 
 export interface NuxtIslandContext {
