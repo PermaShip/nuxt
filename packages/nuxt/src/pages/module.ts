@@ -460,17 +460,26 @@ export default defineNuxtModule({
     nuxt.hook('nitro:build:before', (nitro) => {
       if (nuxt.options.dev || nuxt.options.router.options.hashMode) { return }
 
+      // Build route rules router once for both ssrRoutes filtering and prerender injection
+      const routeRulesRouter = createRou3Router<NitroRouteRules>()
+      for (const [route, rules] of Object.entries(nitro.options.routeRules)) {
+        addRoute(routeRulesRouter, undefined, route, rules)
+      }
+
       nitro.options.ssrRoutes = [
         ...nitro.options.ssrRoutes || [],
-        ...toRou3Patterns(nuxt.apps.default?.pages || []),
+        ...toRou3Patterns(nuxt.apps.default?.pages || [], '/', (rou3Path) => {
+          // Convert rou3 pattern to a concrete test path for route rule matching
+          const testPath = rou3Path
+            .replace(/\*\*:[^/]*/g, '_') // catchall patterns: **:name → _
+            .replace(/:[^/]*/g, '_') // dynamic segments: :name → _
+          const rules = defu({} as Record<string, any>, ...findAllRoutes(routeRulesRouter, undefined, testPath).reverse())
+          return rules.ssr !== false
+        }),
       ]
 
       // Inject page patterns that explicitly match `prerender: true` route rule
       if (!nitro.options.static) {
-        const routeRulesRouter = createRou3Router<NitroRouteRules>()
-        for (const [route, rules] of Object.entries(nitro.options.routeRules)) {
-          addRoute(routeRulesRouter, undefined, route, rules)
-        }
         for (const route of prerenderRoutes) {
           const rules = defu({} as Record<string, any>, ...findAllRoutes(routeRulesRouter, undefined, route).reverse())
           if (rules.prerender) {

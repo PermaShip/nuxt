@@ -122,6 +122,20 @@ describe('route rules', () => {
     expect(routeRules['/route-rules/isr-spa/_payload.json']).toBeUndefined()
     expect(routeRules['/route-rules/isr-spa/_payload.js']).toBeUndefined()
   })
+
+  it('should not include ssr: false routes in ssrRoutes', () => {
+    // @ts-expect-error untyped internal property
+    const ssrRoutes: string[] = useTestContext().nuxt._nitro.options.ssrRoutes || []
+
+    // SPA-only routes must be excluded
+    expect(ssrRoutes.some(r => r.startsWith('/route-rules/spa'))).toBe(false)
+    expect(ssrRoutes.some(r => r.startsWith('/head-spa'))).toBe(false)
+    expect(ssrRoutes.some(r => r.startsWith('/redirect/catchall'))).toBe(false)
+    expect(ssrRoutes.some(r => r.startsWith('/route-rules/isr-spa'))).toBe(false)
+
+    // Non-SPA routes must be present
+    expect(ssrRoutes.some(r => r.startsWith('/isr') || r === '/isr')).toBe(true)
+  })
 })
 
 describe('modules', () => {
