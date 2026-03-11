@@ -1,4 +1,7 @@
 import { fileURLToPath } from 'node:url'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { normalize } from 'pathe'
 import { withoutTrailingSlash } from 'ufo'
@@ -165,6 +168,82 @@ describe('loadNuxt', () => {
     expect(tsConfigPaths).toHaveProperty('#server')
     expect(tsConfigPaths).toHaveProperty('#server/*')
 
+    await nuxt.close()
+  })
+})
+
+describe('future.enforceDirectoryStructure', () => {
+  function createTempFixture(options: { withAppDir?: boolean, withV3Dirs?: string[] } = {}) {
+    const tmpDir = mkdtempSync(join(tmpdir(), 'nuxt-enforce-dir-test-'))
+    // Write a minimal nuxt.config.ts
+    writeFileSync(join(tmpDir, 'nuxt.config.ts'), 'export default defineNuxtConfig({})\n')
+    if (options.withAppDir) {
+      mkdirSync(join(tmpDir, 'app', 'pages'), { recursive: true })
+      writeFileSync(join(tmpDir, 'app', 'pages', 'index.vue'), '<template><div>index</div></template>\n')
+    }
+    for (const dir of (options.withV3Dirs ?? [])) {
+      mkdirSync(join(tmpDir, dir), { recursive: true })
+      writeFileSync(join(tmpDir, dir, 'default.vue'), '<template><div>default</div></template>\n')
+    }
+    return tmpDir
+  }
+
+  it('skips v3 fallback and uses app/ as srcDir when enforceDirectoryStructure is true and ./app/ exists', async () => {
+    const tmpDir = createTempFixture({ withAppDir: true, withV3Dirs: ['layouts', 'pages'] })
+    const nuxt = await loadNuxt({
+      cwd: tmpDir,
+      overrides: { future: { enforceDirectoryStructure: true } },
+      ready: true,
+    })
+    expect(nuxt.options.srcDir).toBe(join(tmpDir, 'app'))
+    await nuxt.close()
+  })
+
+  it('falls back to rootDir when enforceDirectoryStructure is true but ./app/ does not exist', async () => {
+    const tmpDir = createTempFixture({ withAppDir: false })
+    const nuxt = await loadNuxt({
+      cwd: tmpDir,
+      overrides: { future: { enforceDirectoryStructure: true } },
+      ready: true,
+    })
+    expect(nuxt.options.srcDir).toBe(tmpDir)
+    await nuxt.close()
+  })
+
+  it('still falls back to rootDir with enforceDirectoryStructure false when v3 dirs exist at root', async () => {
+    const tmpDir = createTempFixture({ withAppDir: true, withV3Dirs: ['pages'] })
+    const nuxt = await loadNuxt({
+      cwd: tmpDir,
+      overrides: { future: { enforceDirectoryStructure: false } },
+      ready: true,
+    })
+    // v3 fallback: app/ exists but pages/ also at root → srcDir falls back to rootDir
+    expect(nuxt.options.srcDir).toBe(tmpDir)
+    await nuxt.close()
+  })
+
+  it('warns about misplaced v3 directories when enforceDirectoryStructure is true and v3 dirs exist at root', async () => {
+    const tmpDir = createTempFixture({ withAppDir: true, withV3Dirs: ['layouts', 'middleware'] })
+    const nuxt = await loadNuxt({
+      cwd: tmpDir,
+      overrides: { future: { enforceDirectoryStructure: true } },
+      ready: true,
+    })
+    expect(loggerWarn).toHaveBeenCalledWith(expect.stringContaining('`future.enforceDirectoryStructure` is enabled'))
+    expect(loggerWarn).toHaveBeenCalledWith(expect.stringContaining('`layouts/`'))
+    expect(loggerWarn).toHaveBeenCalledWith(expect.stringContaining('`middleware/`'))
+    await nuxt.close()
+  })
+
+  it('does not warn when enforceDirectoryStructure is true and no v3 dirs exist at root', async () => {
+    const tmpDir = createTempFixture({ withAppDir: true })
+    const nuxt = await loadNuxt({
+      cwd: tmpDir,
+      overrides: { future: { enforceDirectoryStructure: true } },
+      ready: true,
+    })
+    const warnCalls = loggerWarn.mock.calls.filter(([msg]) => typeof msg === 'string' && msg.includes('enforceDirectoryStructure'))
+    expect(warnCalls).toHaveLength(0)
     await nuxt.close()
   })
 })
