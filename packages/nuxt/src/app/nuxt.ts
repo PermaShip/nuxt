@@ -96,6 +96,7 @@ export interface NuxtPayload {
   state: Record<string, any>
   once: Set<string>
   config?: Pick<RuntimeConfig, 'public' | 'app'>
+  appConfig?: AppConfig
   error?: NuxtError | undefined
   _errors: Record<string, NuxtError | undefined>
   [key: string]: unknown
