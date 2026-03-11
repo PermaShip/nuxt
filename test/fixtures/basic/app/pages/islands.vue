@@ -111,6 +111,7 @@ const count = ref(0)
     </div>
     <server-with-client />
     <ServerWithNestedClient />
+    <ServerWithNestedServer />
   </div>
 </template>
 
