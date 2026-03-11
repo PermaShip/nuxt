@@ -52,10 +52,13 @@ export default <NitroErrorHandler> async function errorhandler (error, event, { 
   const isRenderingError = event.path.startsWith('/__nuxt_error') || !!reqHeaders['x-nuxt-error']
 
   // HTML response (via SSR)
+  // normalize relative baseURL (e.g. './') to an absolute path for internal fetch
+  const baseURL = useRuntimeConfig(event).app.baseURL
+  const absoluteBaseURL = baseURL.startsWith('./') ? baseURL.slice(1) : baseURL
   const res = isRenderingError
     ? null
     : await useNitroApp().localFetch(
-        withQuery(joinURL(useRuntimeConfig(event).app.baseURL, '/__nuxt_error'), errorObject),
+        withQuery(joinURL(absoluteBaseURL, '/__nuxt_error'), errorObject),
         {
           headers: { ...reqHeaders, 'x-nuxt-error': 'true' },
           redirect: 'manual',
