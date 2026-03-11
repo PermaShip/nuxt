@@ -30,10 +30,7 @@ export async function scanComponents (dirs: ComponentsDir[], srcDir: string): Pr
   // All scanned paths
   const scannedPaths: string[] = []
 
-  for (const dir of dirs) {
-    // A map from resolved path to component name (used for making duplicate warning message)
-    const resolvedNames = new Map<string, string>()
-
+  const globResults = await Promise.all(dirs.map(async (dir) => {
     const files = (await glob(dir.pattern!, { cwd: dir.path, ignore: dir.ignore })).sort()
 
     // Check if the directory exists (globby will otherwise read it case insensitively on MacOS)
@@ -53,6 +50,13 @@ export async function scanComponents (dirs: ComponentsDir[], srcDir: string): Pr
         }
       }
     }
+
+    return { dir, files }
+  }))
+
+  for (const { dir, files } of globResults) {
+    // A map from resolved path to component name (used for making duplicate warning message)
+    const resolvedNames = new Map<string, string>()
 
     for (const _file of files) {
       const filePath = join(dir.path, _file)
