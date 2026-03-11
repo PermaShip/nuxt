@@ -153,4 +153,36 @@ describe('page loading indicator', () => {
 
     el.unmount()
   })
+
+  it('should wait for view transition to finish before hiding loading indicator', async () => {
+    const el = await mountSuspended({ setup: () => () => h('div', [h(NuxtLoadingIndicator), h(NuxtPage)]) })
+
+    let resolveViewTransition!: () => void
+    const viewTransitionFinishedPromise = new Promise<void>((r) => { resolveViewTransition = r })
+    const mockTransition = { finished: viewTransitionFinishedPromise } as unknown as ViewTransition
+
+    // Simulate page:view-transition:start firing (done by view-transitions plugin in real usage)
+    await nuxtApp.callHook('page:view-transition:start', mockTransition)
+
+    // Navigate to the page; page setup is async and pending
+    await navigateTo('/page-load-hook')
+    expect(isLoading.value).toBe(true)
+
+    // Complete page setup — triggers page:finish then page:loading:end
+    resolve!()
+    await flushPromises()
+
+    // Indicator should still be visible: finish() is awaiting viewTransitionFinished
+    expect(isLoading.value).toBe(true)
+
+    // Complete the view transition
+    resolveViewTransition()
+    await flushPromises()
+    await flushPromises()
+
+    // Now the indicator should be hidden
+    expect(isLoading.value).toBe(false)
+
+    el.unmount()
+  })
 })
