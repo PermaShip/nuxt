@@ -2352,6 +2352,19 @@ describe.skipIf(isDev)('dynamic paths', () => {
     expect(headers.get('location')).toEqual('/foo/')
   })
 
+  it('should use baseURL when auto-redirecting via route redirect', async () => {
+    await startServer({
+      env: {
+        NUXT_APP_BUILD_ASSETS_DIR: '/_other/',
+        NUXT_APP_BASE_URL: '/foo/',
+      },
+    })
+    // /redirect has definePageMeta({ redirect: () => '/' })
+    // With baseURL /foo/, the auto redirect should target /foo/ not /
+    const { headers } = await fetch('/foo/redirect', { redirect: 'manual' })
+    expect(headers.get('location')).toEqual('/foo/')
+  })
+
   it('should allow setting CDN URL', async () => {
     await startServer({
       env: {
