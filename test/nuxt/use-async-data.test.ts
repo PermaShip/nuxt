@@ -798,6 +798,50 @@ describe('useAsyncData', () => {
     vi.useRealTimers()
   })
 
+  it('should remain lazy when called after await in async composable', async () => {
+    vi.useFakeTimers()
+
+    let secondResult: ReturnType<typeof useLazyAsyncData> | undefined
+
+    async function useComposableWithMultipleLazy () {
+      const first = useLazyAsyncData('lazy-composable-async-1', async () => {
+        await new Promise(resolve => setTimeout(resolve, 50))
+        return 'first'
+      })
+      // Awaiting first causes getCurrentInstance() to return null for subsequent calls
+      await first
+      secondResult = useLazyAsyncData('lazy-composable-async-2', async () => {
+        await new Promise(resolve => setTimeout(resolve, 50))
+        return 'second'
+      })
+      return { first, second: secondResult }
+    }
+
+    const component = defineComponent({
+      async setup () {
+        await useComposableWithMultipleLazy()
+        return () => h('div')
+      },
+    })
+
+    // mountSuspended should resolve WITHOUT waiting for the lazy fetch
+    const wrapper = await mountSuspended(component)
+
+    // The component is mounted - navigation is NOT blocked
+    expect(wrapper).toBeTruthy()
+    // Data hasn't loaded yet (lazy)
+    expect(secondResult!.data.value).toBe(undefined)
+    expect(secondResult!.pending.value).toBe(true)
+
+    // Advance time and let the fetch resolve
+    vi.advanceTimersByTime(100)
+    await flushPromises()
+
+    expect(secondResult!.data.value).toBe('second')
+
+    vi.useRealTimers()
+  })
+
   it('should not execute with immediate: false and be executable', async () => {
     const promiseFn = vi.fn(() => Promise.resolve('test'))
     const { data, status, execute } = useAsyncData(promiseFn, { immediate: false })
