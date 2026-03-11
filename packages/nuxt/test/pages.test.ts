@@ -1,7 +1,8 @@
 import type { TestAPI } from 'vitest'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RouteLocationNormalizedLoaded } from 'vue-router'
-import { type PagesContextOptions, augmentPages, createPagesContext, normalizeRoutes, pathToNitroGlob } from '../src/pages/utils.ts'
+import { type PagesContextOptions, augmentPages, createPagesContext, normalizeRoutes, pathToNitroGlob, warnAboutDuplicateRoutes } from '../src/pages/utils.ts'
+import { logger } from '../src/utils.ts'
 import type { RouterViewSlotProps } from '../src/pages/runtime/utils.ts'
 import { generateRouteKey } from '../src/pages/runtime/utils.ts'
 import type { NuxtPage } from 'nuxt/schema'
@@ -411,6 +412,79 @@ describe('page:extends', () => {
         meta: { [DYNAMIC_META_KEY]: new Set(['meta']), snap: true },
       },
     ])
+  })
+})
+
+describe('warnAboutDuplicateRoutes', () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {})
+    warnSpy.mockClear()
+  })
+
+  afterEach(() => {
+    warnSpy.mockRestore()
+  })
+
+  it('should warn when two routes share the same path', () => {
+    warnAboutDuplicateRoutes([
+      { path: '/foo', name: 'foo' },
+      { path: '/foo', name: 'foo-dupe', file: 'pages/foo2.vue' },
+    ])
+    expect(warnSpy).toHaveBeenCalledOnce()
+    expect(warnSpy.mock.calls[0]![0]).toContain('/foo')
+    expect(warnSpy.mock.calls[0]![0]).toContain('pages/foo2.vue')
+  })
+
+  it('should warn when two routes share the same name', () => {
+    warnAboutDuplicateRoutes([
+      { path: '/foo', name: 'shared-name' },
+      { path: '/bar', name: 'shared-name', file: 'pages/bar.vue' },
+    ])
+    expect(warnSpy).toHaveBeenCalledOnce()
+    expect(warnSpy.mock.calls[0]![0]).toContain('shared-name')
+    expect(warnSpy.mock.calls[0]![0]).toContain('pages/bar.vue')
+  })
+
+  it('should not warn for _sync routes even when path collides', () => {
+    warnAboutDuplicateRoutes([
+      { path: '/foo', name: 'foo' },
+      { path: '/foo', name: 'foo-sync', _sync: true },
+    ])
+    expect(warnSpy).not.toHaveBeenCalled()
+  })
+
+  it('should detect duplicate paths in nested (child) routes', () => {
+    warnAboutDuplicateRoutes([
+      {
+        path: '/parent',
+        name: 'parent',
+        children: [
+          { path: 'child', name: 'parent-child-a' },
+          { path: 'child', name: 'parent-child-b', file: 'pages/parent/child2.vue' },
+        ],
+      },
+    ])
+    expect(warnSpy).toHaveBeenCalledOnce()
+    expect(warnSpy.mock.calls[0]![0]).toContain('/parent/child')
+  })
+
+  it('should not warn for routes without duplicate paths or names', () => {
+    warnAboutDuplicateRoutes([
+      { path: '/foo', name: 'foo' },
+      { path: '/bar', name: 'bar' },
+      { path: '/baz', name: 'baz' },
+    ])
+    expect(warnSpy).not.toHaveBeenCalled()
+  })
+
+  it('should not warn for routes without a name when only paths differ', () => {
+    warnAboutDuplicateRoutes([
+      { path: '/foo' },
+      { path: '/bar' },
+    ])
+    expect(warnSpy).not.toHaveBeenCalled()
   })
 })
 
