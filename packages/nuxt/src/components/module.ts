@@ -176,11 +176,30 @@ export default defineNuxtModule<ComponentsOptions>({
       }
     })
 
+    // Dirty-flag cache for component scanning
+    let componentsDirty = true
+    let scannedComponentsCache: Component[] = []
+
+    // Mark dirty whenever a file inside a component dir changes
+    nuxt.hook('builder:watch', (_, relativePath) => {
+      const path = resolve(nuxt.options.srcDir, relativePath)
+      if (componentDirs.some(dir => path === dir.path || path.startsWith(dir.path + '/'))) {
+        componentsDirty = true
+      }
+    })
+
     const serverPlaceholderPath = await findPath(join(distDir, 'app/components/server-placeholder')) ?? join(distDir, 'app/components/server-placeholder')
 
     // Scan components and add to plugin
     nuxt.hook('app:templates', async (app) => {
-      const newComponents = await scanComponents(componentDirs, nuxt.options.srcDir!)
+      let newComponents: Component[]
+      if (componentsDirty) {
+        newComponents = await scanComponents(componentDirs, nuxt.options.srcDir!)
+        componentsDirty = false
+        scannedComponentsCache = newComponents
+      } else {
+        newComponents = [...scannedComponentsCache]
+      }
       await nuxt.callHook('components:extend', newComponents)
       // add server placeholder for .client components server side. issue: #7085
       for (const component of newComponents) {

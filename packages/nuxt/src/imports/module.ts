@@ -184,16 +184,22 @@ export default defineNuxtModule<Partial<ImportsOptions>>({
       getImports: () => ctx.getImports(),
     }, options)
 
+    // Flag to avoid double regeneration when builder:watch already triggered regenerateImports
+    let importsDirtyFromWatch = false
+
     // Watch composables/ directory
     nuxt.hook('builder:watch', async (_, relativePath) => {
       const path = resolve(nuxt.options.srcDir, relativePath)
       if (options.scan && composablesDirs.some(dir => dir === path || path.startsWith(dir + '/'))) {
+        importsDirtyFromWatch = true
         await regenerateImports()
       }
     })
 
     // Watch for template generation
     nuxt.hook('app:templatesGenerated', async (_app, templates) => {
+      // Skip regeneration if builder:watch already handled it this cycle
+      if (importsDirtyFromWatch) { importsDirtyFromWatch = false; return }
       // Only regenerate when non-imports templates are updated
       if (templates.some(t => !isImportsTemplate(t))) {
         await regenerateImports()
