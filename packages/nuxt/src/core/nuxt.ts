@@ -884,9 +884,17 @@ export async function loadNuxt (opts: LoadNuxtOptions): Promise<Nuxt> {
   // Add core modules
   options._modules.push(pagesModule, metaModule, componentsModule)
   const importIncludes: RegExp[] = []
+  const normalizedRootDir = normalize(options.rootDir)
   for (const layer of options._layers) {
-    if (layer.cwd && layer.cwd.includes('node_modules')) {
+    if (!layer.cwd) { continue }
+    if (layer.cwd.includes('node_modules')) {
       importIncludes.push(new RegExp(`(^|\\/)${escapeRE(layer.cwd.split('node_modules/').pop()!)}(\\/|$)(?!node_modules\\/)`))
+    } else {
+      const normalizedCwd = normalize(layer.cwd)
+      if (!normalizedCwd.startsWith(normalizedRootDir + '/') && normalizedCwd !== normalizedRootDir) {
+        // External layer outside the project root (not in node_modules)
+        importIncludes.push(new RegExp(`^${escapeRE(normalizedCwd + '/')}`))
+      }
     }
   }
   options._modules.push([importsModule, {

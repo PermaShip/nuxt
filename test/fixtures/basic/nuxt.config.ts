@@ -9,6 +9,7 @@ export default withMatrix({
   appId: 'nuxt-app-basic',
   extends: [
     './extends/node_modules/foo',
+    '../basic-ext-layer',
   ],
   // this produces an order of `~` > `~/extends/bar` > `~/extends/node_modules/foo`
   theme: './extends/bar',

@@ -18,8 +18,8 @@ const ALIAS_ID_RE = /^[~@]{1,2}\//
 export const LayerAliasingPlugin = (options: LayerAliasingOptions) => createUnplugin((_options, meta) => {
   const aliases: Record<string, Record<string, string>> = {}
   for (const layer of options.layers) {
-    const srcDir = layer.config.srcDir || layer.cwd
-    const rootDir = layer.config.rootDir || layer.cwd
+    const srcDir = normalize(layer.config.srcDir || layer.cwd || '')
+    const rootDir = normalize(layer.config.rootDir || layer.cwd || '')
 
     aliases[srcDir] = {
       '~': layer.config?.alias?.['~'] || srcDir,
@@ -67,7 +67,8 @@ export const LayerAliasingPlugin = (options: LayerAliasingOptions) => createUnpl
         handler (id, importer) {
           if (!importer) { return }
 
-          const layer = layers.find(l => importer.startsWith(l))
+          const _importer = normalize(importer)
+          const layer = layers.find(l => _importer.startsWith(l))
           if (!layer) { return }
 
           const resolvedId = resolveAlias(id, aliases[layer])

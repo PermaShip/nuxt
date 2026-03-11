@@ -1626,6 +1626,10 @@ describe('extends support', () => {
       const html = await $fetch<string>('/extends')
       expect(html).toContain('test from project')
     })
+    it('auto-imports default export composable from external layer (outside rootDir)', async () => {
+      const html = await $fetch<string>('/external-layer')
+      expect(html).toContain('from-external-layer-default')
+    })
   })
 
   describe('plugins', () => {
