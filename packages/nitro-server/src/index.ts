@@ -30,6 +30,7 @@ import { distDir, toArray } from './utils.ts'
 import { template as defaultSpaLoadingTemplate } from '../../ui-templates/dist/templates/spa-loading-icon.ts'
 // TODO: figure out a good way to share this
 import { createImportProtectionPatterns } from '../../nuxt/src/core/plugins/import-protection.ts'
+import { LayerAliasingPlugin } from '../../nuxt/src/core/plugins/layer-aliasing.ts'
 import { nitroSchemaTemplate } from './templates.ts'
 
 const logLevelMapReverse = {
@@ -634,6 +635,19 @@ export async function bundle (nuxt: Nuxt & { _nitro?: Nitro }): Promise<void> {
   // Register nuxt protection patterns
   nitroConfig.rollupConfig!.plugins = await nitroConfig.rollupConfig!.plugins || []
   nitroConfig.rollupConfig!.plugins = toArray(nitroConfig.rollupConfig!.plugins)
+
+  // Add layer aliasing plugin to resolve relative layer aliases (~/. @/, etc.) in server files
+  if (nuxt.options.experimental.localLayerAliases) {
+    nitroConfig.rollupConfig!.plugins!.unshift(
+      LayerAliasingPlugin({
+        sourcemap: !!nuxt.options.sourcemap.server,
+        dev: nuxt.options.dev,
+        root: nuxt.options.srcDir,
+        // skip top-level layer (user's project) as the aliases will already be correctly resolved
+        layers: nuxt.options._layers.slice(1),
+      }).rollup(),
+    )
+  }
 
   const sharedDir = withTrailingSlash(resolve(nuxt.options.rootDir, nuxt.options.dir.shared))
   const relativeSharedDir = withTrailingSlash(relative(nuxt.options.rootDir, resolve(nuxt.options.rootDir, nuxt.options.dir.shared)))

@@ -14,6 +14,7 @@ interface LayerAliasingOptions {
 const ALIAS_RE = /(?<=['"])[~@]{1,2}(?=\/)/g
 const ALIAS_RE_SINGLE = /(?<=['"])[~@]{1,2}(?=\/)/
 const ALIAS_ID_RE = /^[~@]{1,2}\//
+const CSS_RE = /\.(?:css|scss|sass|postcss|pcss|less|stylus|styl)(?:\?[^.]+)?$/
 
 export const LayerAliasingPlugin = (options: LayerAliasingOptions) => createUnplugin((_options, meta) => {
   const aliases: Record<string, Record<string, string>> = {}
@@ -73,6 +74,31 @@ export const LayerAliasingPlugin = (options: LayerAliasingOptions) => createUnpl
           const resolvedId = resolveAlias(id, aliases[layer])
           if (resolvedId !== id) {
             return this.resolve(resolvedId, importer, { skipSelf: true })
+          }
+        },
+      },
+      // In Vite, CSS preprocessing (Sass/SCSS/Less) resolves @import statements
+      // independently from the Vite plugin resolveId pipeline. We need to transform
+      // the raw CSS source to replace layer aliases before the preprocessor runs.
+      transform: {
+        order: 'pre',
+        filter: {
+          id: CSS_RE,
+          code: { include: ALIAS_RE_SINGLE },
+        },
+        handler (code, id) {
+          const _id = normalize(id).split('?')[0]!
+          const layer = layers.find(l => _id.startsWith(l))
+          if (!layer) { return }
+
+          const s = new MagicString(code)
+          s.replace(ALIAS_RE, r => aliases[layer]?.[r as '~'] || r)
+
+          if (s.hasChanged()) {
+            return {
+              code: s.toString(),
+              map: options.sourcemap ? s.generateMap({ hires: true }) : undefined,
+            }
           }
         },
       },

@@ -1649,6 +1649,10 @@ describe('extends support', () => {
       const { headers } = await fetch('/')
       expect(headers.get('injected-header')).toEqual('foo')
     })
+
+    it('resolves layer aliases in server files', async () => {
+      expect(await $fetch<string>('/api/layer-alias')).toBe('server utils from layer alias')
+    })
   })
 
   describe('app', () => {
