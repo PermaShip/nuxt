@@ -135,10 +135,17 @@ function createLoadingIndicator (opts: Partial<LoadingIndicatorOpts> = {}) {
 
   let _cleanup = () => {}
   if (import.meta.client) {
+    let viewTransitionFinished: Promise<void> | undefined
+
+    const unsubViewTransitionStart = nuxtApp.hook('page:view-transition:start', (transition) => {
+      viewTransitionFinished = transition.finished.catch(() => {})
+    })
+
     const unsubLoadingStartHook = nuxtApp.hook('page:loading:start', () => {
       start()
     })
-    const unsubLoadingFinishHook = nuxtApp.hook('page:loading:end', () => {
+    const unsubLoadingFinishHook = nuxtApp.hook('page:loading:end', async () => {
+      await viewTransitionFinished
       finish()
     })
     const unsubError = nuxtApp.hook('vue:error', () => finish())
@@ -147,6 +154,8 @@ function createLoadingIndicator (opts: Partial<LoadingIndicatorOpts> = {}) {
       unsubError()
       unsubLoadingStartHook()
       unsubLoadingFinishHook()
+      unsubViewTransitionStart()
+      viewTransitionFinished = undefined
       clear()
     }
   }
