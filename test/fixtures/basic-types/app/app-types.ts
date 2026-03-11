@@ -623,6 +623,19 @@ describe('composables', () => {
       // @ts-expect-error cached data should return the same as asserted type of `useAsyncData`
       getCachedData: () => ({ bar: 2 }),
     })
+
+    // transform + getCachedData: data should be typed as DataT (transform output, not ResT)
+    expectTypeOf(useAsyncData('test', () => Promise.resolve({ foo: 1 }), {
+      transform: (data) => data.foo,  // DataT = number
+      getCachedData: () => 42,  // returns number, which is DataT
+    }).data).toEqualTypeOf<Ref<number | DefaultAsyncDataValue>>()
+
+    // getCachedData constrained to DataT when transform is provided
+    useAsyncData('test', () => Promise.resolve({ foo: 1 }), {
+      transform: (data) => data.foo,  // DataT = number
+      // @ts-expect-error getCachedData should return DataT (number), not ResT ({foo: number})
+      getCachedData: () => ({ foo: 42 }),
+    })
   })
 })
 
