@@ -5,6 +5,7 @@ import { computed, reactive, toValue, watch } from 'vue'
 import { hash } from 'ohash'
 
 import { isPlainObject } from '@vue/shared'
+import { getRequestHeader } from '@nuxt/nitro-server/h3'
 import { useRequestFetch } from './ssr'
 import type { AsyncData, AsyncDataOptions, KeysOf, MultiWatchSources, PickFrom } from './asyncData'
 import { useAsyncData } from './asyncData'
@@ -147,18 +148,27 @@ export function useFetch<
     watch([...watchSources || [], _fetchOptions], setImmediate, { flush: 'sync', once: true })
   }
 
-  const asyncData = useAsyncData<_ResT, ErrorT, DataT, PickKeys, DefaultT>(watchSources === false ? key.value : key, (_, { signal }) => {
+  const asyncData = useAsyncData<_ResT, ErrorT, DataT, PickKeys, DefaultT>(watchSources === false ? key.value : key, (nuxtApp, { signal }) => {
     let _$fetch: H3Event$Fetch | $Fetch<unknown, NitroFetchRequest> = opts.$fetch || globalThis.$fetch
+    let _fetchDepthHeader: string | undefined
 
     // Use fetch with request context and headers for server direct API calls
     if (import.meta.server && !opts.$fetch) {
       const isLocalFetch = typeof _request.value === 'string' && _request.value[0] === '/' && (!toValue(opts.baseURL) || toValue(opts.baseURL)![0] === '/')
       if (isLocalFetch) {
         _$fetch = useRequestFetch()
+
+        // Detect recursive server-side fetches via x-nuxt-fetch-depth header
+        const event = nuxtApp.ssrContext?.event
+        const fetchDepth = Number(event ? getRequestHeader(event, 'x-nuxt-fetch-depth') ?? 0 : 0)
+        if (fetchDepth >= 25) {
+          throw new Error(`[nuxt] [useFetch] Detected a possible infinite recursion when fetching \`${_request.value}\`. Check that server-side API handlers are not calling themselves recursively.`)
+        }
+        _fetchDepthHeader = String(fetchDepth + 1)
       }
     }
 
-    return _$fetch(_request.value, { signal, ..._fetchOptions } as any) as Promise<_ResT>
+    return _$fetch(_request.value, { signal, ..._fetchOptions, ...(_fetchDepthHeader && { headers: { ...(_fetchOptions.headers as Record<string, string> | undefined), 'x-nuxt-fetch-depth': _fetchDepthHeader } }) } as any) as Promise<_ResT>
   }, _asyncDataOptions)
 
   return asyncData
