@@ -2390,7 +2390,7 @@ describe('app config', () => {
   it('should work', async () => {
     const html = await $fetch<string>('/app-config')
 
-    const expectedAppConfig: Record<string, any> = {
+    const baseAppConfig: Record<string, any> = {
       fromNuxtConfig: true,
       nested: {
         val: 2,
@@ -2399,10 +2399,16 @@ describe('app config', () => {
       fromLayer: true,
       userConfig: 123,
     }
-    expect.soft(html).toContain(JSON.stringify(expectedAppConfig))
+    const clientAppConfig = { ...baseAppConfig, fromServerPlugin: true }
+    expect.soft(html).toContain(JSON.stringify(clientAppConfig))
 
     const serverAppConfig = await $fetch<Record<string, any>>('/api/app-config')
-    expect(serverAppConfig).toMatchObject({ appConfig: expectedAppConfig })
+    expect(serverAppConfig).toMatchObject({ appConfig: baseAppConfig })
+  })
+
+  it('should carry server plugin mutations to client', async () => {
+    const html = await $fetch<string>('/app-config')
+    expect(html).toContain('"fromServerPlugin":true')
   })
 })
 

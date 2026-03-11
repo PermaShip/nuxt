@@ -60,7 +60,16 @@ function deepAssign (obj: any, newObj: any) {
 
 export function useAppConfig (): AppConfig {
   const nuxtApp = useNuxtApp()
-  nuxtApp._appConfig ||= (import.meta.server ? klona(__appConfig) : reactive(__appConfig)) as AppConfig
+  if (!nuxtApp._appConfig) {
+    if (import.meta.server) {
+      nuxtApp._appConfig = klona(__appConfig) as AppConfig
+      // Expose by reference so server-side mutations are captured at payload serialization time
+      nuxtApp.payload.appConfig = nuxtApp._appConfig
+    } else {
+      // On client, prefer server-provided appConfig from payload (may include server mutations)
+      nuxtApp._appConfig = reactive(nuxtApp.payload.appConfig || __appConfig) as AppConfig
+    }
+  }
   return nuxtApp._appConfig
 }
 
