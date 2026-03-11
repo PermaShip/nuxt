@@ -11,6 +11,8 @@ import vuePlugin from '@vitejs/plugin-vue'
 import { joinURL, withTrailingSlash, withoutLeadingSlash } from 'ufo'
 import { filename } from 'pathe/utils'
 import { resolveModulePath } from 'exsolve'
+import type { PackageJson } from 'pkg-types'
+import { readPackageJSON } from 'pkg-types'
 
 import { ssr, ssrEnvironment } from './shared/server.ts'
 import { clientEnvironment } from './shared/client.ts'
@@ -45,6 +47,22 @@ export const bundle: NuxtBuilder['bundle'] = async (nuxt) => {
   const entry = await resolvePath(resolve(nuxt.options.appDir, useAsyncEntry ? 'entry.async' : 'entry'))
 
   nuxt.options.modulesDir.push(distDir)
+
+  // Deduplicate dependencies from non-root layers to prevent instanceof failures in production builds.
+  // Without this, Rollup can bundle separate copies of the same npm package for the root project and
+  // each layer, causing `instanceof` checks to return `false` across layer boundaries.
+  const layerDeps = new Set<string>()
+  for (const layer of nuxt.options._layers.slice(1)) {
+    const pkg = await readPackageJSON(layer.cwd).catch(() => ({}) as PackageJson)
+    for (const deps of [pkg.dependencies, pkg.peerDependencies, pkg.optionalDependencies]) {
+      if (deps) { Object.keys(deps).forEach(d => layerDeps.add(d)) }
+    }
+  }
+  if (layerDeps.size > 0) {
+    nuxt.options.vite.resolve ||= {}
+    nuxt.options.vite.resolve.dedupe ||= []
+    nuxt.options.vite.resolve.dedupe.push(...layerDeps)
+  }
 
   // Register Nitro plugin to fix SSR error stacktraces in dev mode
   if (nuxt.options.dev) {

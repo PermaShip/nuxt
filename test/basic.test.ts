@@ -1649,6 +1649,11 @@ describe('extends support', () => {
       const { headers } = await fetch('/')
       expect(headers.get('injected-header')).toEqual('foo')
     })
+
+    it('instanceof works correctly across layer boundaries in production', async () => {
+      const result = await $fetch<{ isInstanceof: boolean }>('/api/layer-instanceof')
+      expect(result.isInstanceof).toBe(true)
+    })
   })
 
   describe('app', () => {
