@@ -191,6 +191,18 @@ async function initNuxt (nuxt: Nuxt) {
     }
   }
 
+  // Warn about v3-style directories at rootDir when strict v4 structure is enforced
+  if (nuxt.options.future.enforceDirectoryStructure && nuxt.options.srcDir !== nuxt.options.rootDir) {
+    const v3Dirs = ['pages', 'layouts', 'middleware', 'plugins', 'assets', 'components']
+    const misplacedDirs = v3Dirs.filter(dir => existsSync(resolve(nuxt.options.rootDir, dir)))
+    if (misplacedDirs.length > 0) {
+      logger.warn(
+        `\`future.enforceDirectoryStructure\` is enabled but v3-style directories were found at project root: ${misplacedDirs.map(d => `\`${d}/\``).join(', ')}.\n` +
+        `These will not be scanned. Move them to \`${nuxt.options.srcDir}\`.`,
+      )
+    }
+  }
+
   // Restart Nuxt when layer directories are added or removed
   const layersDir = withTrailingSlash(resolve(nuxt.options.rootDir, 'layers'))
   nuxt.hook('builder:watch', (event, relativePath) => {

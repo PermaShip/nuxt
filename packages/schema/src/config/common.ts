@@ -42,6 +42,12 @@ export default defineResolvers({
         return rootDir
       }
 
+      // When strict v4 directory structure is enforced, skip the v3 fallback
+      // detection and always use the app/ directory as srcDir.
+      if (await get('future.enforceDirectoryStructure')) {
+        return srcDir
+      }
+
       const srcDirFiles = new Set<string>()
       const files = await readdir(srcDir).catch(() => [])
       for (const file of files) {

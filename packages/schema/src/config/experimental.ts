@@ -7,6 +7,7 @@ export default defineResolvers({
       $resolve: val => typeof val === 'number' ? val as 4 | 5 : 4,
     },
     multiApp: false,
+    enforceDirectoryStructure: false,
     typescriptBundlerResolution: {
       async $resolve (val, get) {
         // @ts-expect-error TODO: remove in v3.10

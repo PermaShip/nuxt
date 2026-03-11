@@ -1015,6 +1015,19 @@ export interface ConfigSchema {
      * @see [TypeScript PR implementing `bundler` module resolution](https://github.com/microsoft/TypeScript/pull/51669)
      */
     typescriptBundlerResolution: boolean
+
+    /**
+     * When enabled, Nuxt will not fall back to the v3 root directory structure
+     * when `./app/` exists. Nuxt will also warn about any v3-style directories
+     * found at project root that will not be scanned (e.g., `layouts/`, `pages/`).
+     *
+     * This is useful for teams adopting v4 structure to prevent accidental
+     * file misplacement that silently works due to the compatibility fallback.
+     *
+     * @default false
+     * @see [Nuxt v4 Directory Structure](https://nuxt.com/docs/getting-started/upgrade#new-directory-structure)
+     */
+    enforceDirectoryStructure: boolean
   }
 
   /**
