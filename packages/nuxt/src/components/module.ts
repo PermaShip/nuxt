@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { isAbsolute, join, normalize, relative, resolve } from 'pathe'
-import { addBuildPlugin, addImportsSources, addPluginTemplate, addTemplate, addTypeTemplate, addVitePlugin, defineNuxtModule, findPath, resolveAlias } from '@nuxt/kit'
+import { addBuildPlugin, addImportsSources, addPluginTemplate, addTemplate, addTypeTemplate, addVitePlugin, defineNuxtModule, findPath, getLayerDirectories, resolveAlias } from '@nuxt/kit'
 
 import { resolveModulePath } from 'exsolve'
 import { distDir } from '../dirs.ts'
@@ -124,6 +124,18 @@ export default defineNuxtModule<ComponentsOptions>({
         ...userComponentDirs,
         ...libraryComponentDirs,
       ]
+
+      // Watch component dirs that are outside layer directories (e.g. from monorepo packages)
+      if (nuxt.options.dev) {
+        const layerAppDirs = getLayerDirectories(nuxt).map(d => d.app)
+        for (const dir of componentDirs) {
+          if (dir.path.includes('node_modules')) { continue }
+          const isInsideLayerDir = layerAppDirs.some(layerDir => dir.path.startsWith(layerDir))
+          if (!isInsideLayerDir && !nuxt.options.watch.some(w => typeof w === 'string' && dir.path === w)) {
+            nuxt.options.watch.push(dir.path)
+          }
+        }
+      }
     })
 
     // components.d.ts
