@@ -319,8 +319,15 @@ export function useAsyncData<
       // 3. Initial load or navigation (lazy: true): fetch on mounted
       instance._nuxtOnBeforeMountCbs.push(initialFetch)
     } else if (options.immediate && asyncData.status.value !== 'success') {
-      // 4. Navigation (lazy: false) - or plugin usage: await fetch
-      initialFetch()
+      if (options.lazy) {
+        // 4a. Lazy but no component instance (e.g., called after `await` in async composable):
+        // Defer the fetch to avoid setting _asyncDataPromises before asyncDataPromise is created,
+        // which would incorrectly block navigation.
+        Promise.resolve().then(() => nuxtApp.runWithContext(() => initialFetch()))
+      } else {
+        // 4b. Navigation (lazy: false) - or plugin usage: await fetch
+        initialFetch()
+      }
     }
 
     function unregister (key: string) {
