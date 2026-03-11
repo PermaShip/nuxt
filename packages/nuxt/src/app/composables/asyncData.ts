@@ -828,6 +828,13 @@ const getDefaultCachedData: AsyncDataOptions<any>['getCachedData'] = (key, nuxtA
     return nuxtApp.payload.data[key]
   }
 
+  // For lazily hydrated components that activate after initial hydration completes,
+  // still use server payload data if it exists and no async data entry has been
+  // initialized for this key yet (distinguishes fresh lazy activation from navigation)
+  if (ctx.cause === 'initial' && !nuxtApp._asyncData[key]?._init && nuxtApp.payload.data[key] !== undefined) {
+    return nuxtApp.payload.data[key]
+  }
+
   if (ctx.cause !== 'refresh:manual' && ctx.cause !== 'refresh:hook') {
     return nuxtApp.static.data[key]
   }

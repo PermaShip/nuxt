@@ -3180,6 +3180,30 @@ describe('lazy import components', () => {
 
       await page.close()
     })
+
+    it.runIf(description === 'in template')('does not duplicate fetch for useAsyncData in lazily hydrated components', async () => {
+      const { page, requests } = await renderPage(`/lazy-import-components/delayed-hydration/fetch`)
+
+      // Count API requests at page load time
+      const initialApiRequests = requests.filter(r => r.includes('/api/hey'))
+
+      // Wait for hydrate-when component to show data (hydrates immediately since condition is true)
+      await page.locator('[data-testid=hydrate-when-fetch]', { hasText: /fetch-data:/ }).waitFor({ state: 'visible' })
+
+      // Verify no additional API request was triggered by lazy hydration
+      const afterHydrationApiRequests = requests.filter(r => r.includes('/api/hey'))
+      expect(afterHydrationApiRequests.length).toBe(initialApiRequests.length)
+
+      // Scroll to trigger hydrate-on-visible component
+      await page.getByTestId('hydrate-on-visible-fetch').scrollIntoViewIfNeeded()
+      await page.locator('[data-testid=hydrate-on-visible-fetch]', { hasText: /fetch-data:/ }).waitFor({ state: 'visible' })
+
+      // Still no new API requests — server payload data should be reused
+      const finalApiRequests = requests.filter(r => r.includes('/api/hey'))
+      expect(finalApiRequests.length).toBe(initialApiRequests.length)
+
+      await page.close()
+    })
   })
 })
 
