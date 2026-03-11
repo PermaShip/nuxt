@@ -258,6 +258,74 @@ describe('scrollBehavior with cross-layout transitions (#34196)', () => {
     // not immediately when page:loading:end fires.
     expect(layoutAfterLeave).toHaveBeenCalledBefore(scrollTo)
   })
+
+  it('should not scrollTo before layout transition finishes when both layoutTransition and pageTransition are configured', async () => {
+    const localLayoutAfterLeave = vi.fn()
+
+    const layoutTransitionWithPage = {
+      name: 'layout',
+      mode: 'out-in' as const,
+      duration: 10,
+      onAfterLeave: () => localLayoutAfterLeave(),
+    }
+
+    const pageTransition = {
+      name: 'page',
+      mode: 'out-in' as const,
+      duration: 10,
+    }
+
+    router.addRoute({
+      name: 'scroll-layout-a-pt',
+      path: '/scroll-layout-a-pt',
+      meta: {
+        // @ts-expect-error dynamically-added layout
+        layout: 'scroll-layout-a',
+        layoutTransition: layoutTransitionWithPage,
+        pageTransition,
+      },
+      component: defineComponent({ setup: () => () => h('div', 'Page A with page transition') }),
+    })
+
+    router.addRoute({
+      name: 'scroll-layout-b-pt',
+      path: '/scroll-layout-b-pt',
+      meta: {
+        // @ts-expect-error dynamically-added layout
+        layout: 'scroll-layout-b',
+        layoutTransition: layoutTransitionWithPage,
+        pageTransition,
+      },
+      component: defineComponent({ setup: () => () => h('div', 'Page B with page transition') }),
+    })
+
+    try {
+      // Navigate to first layout to establish a "previous" layout
+      await navigateTo('/scroll-layout-a-pt')
+      await flushPromises()
+      await expect.poll(() => pageLoadingEnd.mock.calls.length).toBeGreaterThan(0)
+
+      // Wait for everything from first navigation to fully settle
+      await expect.poll(() => scrollTo.mock.calls.length).toBeGreaterThan(0)
+      vi.clearAllMocks()
+
+      // Navigate to a different layout (triggers both layout and page transitions)
+      await navigateTo('/scroll-layout-b-pt')
+      await flushPromises()
+
+      // Wait for all events to settle
+      await expect.poll(() => localLayoutAfterLeave.mock.calls.length).toBeGreaterThan(0)
+      await expect.poll(() => scrollTo.mock.calls.length).toBeGreaterThan(0)
+
+      // scrollTo should fire AFTER the layout transition finishes (onAfterLeave),
+      // even when a simultaneous pageTransition is configured.
+      expect(localLayoutAfterLeave).toHaveBeenCalledBefore(scrollTo)
+    }
+    finally {
+      router.removeRoute('scroll-layout-a-pt')
+      router.removeRoute('scroll-layout-b-pt')
+    }
+  })
 })
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
