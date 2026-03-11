@@ -1,0 +1,7 @@
+{
+  "name": "extends-bar",
+  "private": true,
+  "dependencies": {
+    "defu": "latest"
+  }
+}
